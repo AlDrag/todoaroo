@@ -6,6 +6,9 @@ import (
 	"log"
 	"os"
 
+	"todoaroo/task"
+	"todoaroo/task_input"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,16 +18,11 @@ import (
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
-type task struct {
-	id, title, description string
-}
-
-func (i task) Title() string       { return i.title }
-func (i task) Description() string { return i.description }
-func (i task) FilterValue() string { return i.title }
-
 type model struct {
 	list list.Model
+
+	TaskInputModel task_input.TaskInput
+	ShowTextInput  bool
 }
 
 func (m model) Init() tea.Cmd {
@@ -34,8 +32,14 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
+		switch msg.String() {
+		case "ctrl+c":
 			return m, tea.Quit
+		case "a":
+			if !m.ShowTextInput {
+				m.TaskInputModel = task_input.InitialModel()
+				m.ShowTextInput = true
+			}
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
@@ -46,10 +50,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	if m.ShowTextInput {
+		taskInputModel, cmd := m.TaskInputModel.Update(msg)
+		m.TaskInputModel = taskInputModel.(task_input.TaskInput)
+		if m.TaskInputModel.Submitted {
+			newTask := m.TaskInputModel.GetNewTask()
+			m.list.InsertItem(len(m.list.Items()), newTask)
+			m.TaskInputModel.Submitted = false
+			m.ShowTextInput = false
+		}
+		return m, cmd
+	}
+
 	return m, nil
 }
 
 func (m model) View() string {
+	if m.ShowTextInput {
+		return m.TaskInputModel.View()
+	}
 	return docStyle.Render(m.list.View())
 }
 
@@ -93,11 +112,14 @@ func main() {
 	// Iterate over the result set
 	var tasks []list.Item
 	for rows.Next() {
-		var task task
-		err := rows.Scan(&task.id, &task.title, &task.description)
+		var id string
+		var title string
+		var description string
+		err := rows.Scan(&id, &title, &description)
 		if err != nil {
 			log.Fatal(err)
 		}
+		var task task.Task = task.Create(id, title, description)
 		tasks = append(tasks, task)
 	}
 
