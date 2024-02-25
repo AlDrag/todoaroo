@@ -18,8 +18,15 @@ import (
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
+type taskStore interface {
+	Create(title string, description string) (task.Task, error)
+	List() ([]task.Task, error)
+	Delete(id int) error
+}
+
 type model struct {
-	list list.Model
+	list      list.Model
+	taskStore *task.TaskSqlStore
 
 	TaskInputModel task_input.TaskInput
 	ShowTextInput  bool
@@ -40,21 +47,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.TaskInputModel = task_input.InitialModel()
 				m.ShowTextInput = true
 			}
+		case "x":
+			if !m.ShowTextInput {
+				selectedItem := m.list.Items()[m.list.Index()]
+				selectedTask := selectedItem.(task.Task)
+				m.taskStore.Delete(selectedTask.ID())
+				m.list.RemoveItem(m.list.Index())
+			}
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
-
-		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
-		return m, cmd
 	}
 
 	if m.ShowTextInput {
 		taskInputModel, cmd := m.TaskInputModel.Update(msg)
 		m.TaskInputModel = taskInputModel.(task_input.TaskInput)
 		if m.TaskInputModel.Submitted {
-			newTask := m.TaskInputModel.GetNewTask()
+			title, description := m.TaskInputModel.GetNewTask()
+			newTask, _ := m.taskStore.Create(title, description)
 			m.list.InsertItem(len(m.list.Items()), newTask)
 			m.TaskInputModel.Submitted = false
 			m.ShowTextInput = false
@@ -62,7 +73,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	return m, nil
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
 }
 
 func (m model) View() string {
@@ -102,42 +115,29 @@ func main() {
 
 	fmt.Println("Created tasks table")
 
-	// Query tasks from the database
-	rows, err := db.Query("SELECT id, title, description FROM tasks")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
+	taskStore := task.NewStore(db)
 
-	// Iterate over the result set
-	var tasks []list.Item
-	for rows.Next() {
-		var id string
-		var title string
-		var description string
-		err := rows.Scan(&id, &title, &description)
-		if err != nil {
-			log.Fatal(err)
-		}
-		var task task.Task = task.Create(id, title, description)
-		tasks = append(tasks, task)
+	tasks := taskStore.List()
+
+	items := make([]list.Item, len(tasks))
+	for i, task := range tasks {
+		items[i] = task
 	}
 
-	// Check for errors from iterating over rows
-	if err = rows.Err(); err != nil {
-		log.Fatal(err)
-	}
-
-	tasksList := list.New(tasks, list.NewDefaultDelegate(), 0, 0)
+	tasksList := list.New(items, list.NewDefaultDelegate(), 0, 0)
 	tasksList.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			key.NewBinding(
 				key.WithKeys("a"),
 				key.WithHelp("a", "add item"),
 			),
+			key.NewBinding(
+				key.WithKeys("x"),
+				key.WithHelp("a", "delete item"),
+			),
 		}
 	}
-	m := model{list: tasksList}
+	m := model{list: tasksList, taskStore: taskStore}
 	m.list.Title = "Todoaroo list"
 
 	p := tea.NewProgram(m, tea.WithAltScreen())

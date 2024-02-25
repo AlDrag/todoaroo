@@ -6,13 +6,11 @@ package task_input
 import (
 	"fmt"
 	"strings"
-	"todoaroo/task"
 
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 )
 
 var (
@@ -177,8 +175,8 @@ func (m TaskInput) SubmittedValues() []string {
 	return submittedValues
 }
 
-func (m TaskInput) GetNewTask() task.Task {
+func (m TaskInput) GetNewTask() (string, string) {
 	var title = m.inputs[0].Value()
 	var description = m.inputs[1].Value()
-	return task.Create(uuid.New().String(), title, description)
+	return title, description
 }
