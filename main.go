@@ -46,6 +46,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.ShowTextInput {
 				m.TaskInputModel = task_input.InitialModel()
 				m.ShowTextInput = true
+				return m, nil
 			}
 		case "x":
 			if !m.ShowTextInput {
