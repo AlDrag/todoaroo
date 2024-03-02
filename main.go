@@ -66,7 +66,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.TaskInputModel.Submitted {
 			title, description := m.TaskInputModel.GetNewTask()
 			newTask, _ := m.taskStore.Create(title, description)
-			m.list.InsertItem(len(m.list.Items()), newTask)
+			m.list.InsertItem(len(m.list.Items()), *newTask)
 			m.TaskInputModel.Submitted = false
 			m.ShowTextInput = false
 		}
