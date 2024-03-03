@@ -9,7 +9,7 @@ type TaskSqlStore struct {
 	db *sql.DB
 }
 
-func ConnectStore() (*TaskSqlStore, error) {
+func ConnectNew() (*TaskSqlStore, error) {
 	// Open a database file, creating it if it doesn't exist
 	db, err := sql.Open("sqlite3", "database.db")
 

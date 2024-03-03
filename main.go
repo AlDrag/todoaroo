@@ -89,7 +89,7 @@ func (m model) View() string {
 
 func main() {
 	// Connect to store
-	taskStore, err := task.ConnectStore()
+	taskStore, err := task.ConnectNew()
 	if err != nil {
 		log.Fatal(err)
 	}
