@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
