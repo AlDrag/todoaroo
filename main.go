@@ -14,6 +14,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	tasksListMode int = iota
+	createMode
+)
+
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type taskStore interface {
@@ -25,11 +30,11 @@ type taskStore interface {
 }
 
 type model struct {
-	list      list.Model
+	mode      int
 	taskStore taskStore
 
+	list           list.Model
 	taskInputModel task_input.TaskInput
-	showTextInput  bool
 }
 
 func (m model) Init() tea.Cmd {
@@ -37,41 +42,11 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
-			return m, tea.Quit
-		case "a":
-			if !m.showTextInput {
-				m.taskInputModel = task_input.InitialModel()
-				m.showTextInput = true
-				return m, nil
-			}
-		case "x":
-			if !m.showTextInput {
-				selectedItem := m.list.Items()[m.list.Index()]
-				selectedTask := selectedItem.(task.Task)
-				m.taskStore.Delete(selectedTask.ID())
-				m.list.RemoveItem(m.list.Index())
-			}
-		}
-	case tea.WindowSizeMsg:
-		h, v := docStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
-	}
-
-	if m.showTextInput {
-		taskInputModel, cmd := m.taskInputModel.Update(msg)
-		m.taskInputModel = taskInputModel.(task_input.TaskInput)
-		if m.taskInputModel.Submitted {
-			title, description := m.taskInputModel.GetNewTask()
-			newTask, _ := m.taskStore.Create(title, description)
-			m.list.InsertItem(len(m.list.Items()), *newTask)
-			m.taskInputModel.Submitted = false
-			m.showTextInput = false
-		}
-		return m, cmd
+	switch m.mode {
+	case tasksListMode:
+		return m.taskListUpdate(msg)
+	case createMode:
+		return m.createTaskUpdate(msg)
 	}
 
 	var cmd tea.Cmd
@@ -80,10 +55,49 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	if m.showTextInput {
+	if m.mode == createMode {
 		return m.taskInputModel.View()
 	}
 	return docStyle.Render(m.list.View())
+}
+
+func (m model) taskListUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c":
+			return m, tea.Quit
+		case "a":
+			m.taskInputModel = task_input.InitialModel()
+			m.mode = createMode
+			return m, nil
+		case "x":
+			selectedItem := m.list.Items()[m.list.Index()]
+			selectedTask := selectedItem.(task.Task)
+			m.taskStore.Delete(selectedTask.ID())
+			m.list.RemoveItem(m.list.Index())
+		}
+	case tea.WindowSizeMsg:
+		h, v := docStyle.GetFrameSize()
+		m.list.SetSize(msg.Width-h, msg.Height-v)
+	}
+
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
+}
+
+func (m model) createTaskUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	taskInputModel, cmd := m.taskInputModel.Update(msg)
+	m.taskInputModel = taskInputModel.(task_input.TaskInput)
+	if m.taskInputModel.Submitted {
+		title, description := m.taskInputModel.GetNewTask()
+		newTask, _ := m.taskStore.Create(title, description)
+		m.list.InsertItem(len(m.list.Items()), *newTask)
+		m.taskInputModel.Submitted = false
+		m.mode = tasksListMode
+	}
+	return m, cmd
 }
 
 func main() {
@@ -126,7 +140,7 @@ func main() {
 			),
 		}
 	}
-	m := model{list: tasksList, taskStore: taskStore}
+	m := model{mode: tasksListMode, list: tasksList, taskStore: taskStore}
 	m.list.Title = "Todoaroo list"
 
 	// Initialise Bubbletea program
