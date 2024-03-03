@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -19,6 +18,8 @@ import (
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type taskStore interface {
+	Init() error
+	Close() error
 	Create(title string, description string) (*task.Task, error)
 	List() ([]task.Task, error)
 	Delete(id int) error
@@ -28,8 +29,8 @@ type model struct {
 	list      list.Model
 	taskStore taskStore
 
-	TaskInputModel task_input.TaskInput
-	ShowTextInput  bool
+	taskInputModel task_input.TaskInput
+	showTextInput  bool
 }
 
 func (m model) Init() tea.Cmd {
@@ -43,13 +44,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "a":
-			if !m.ShowTextInput {
-				m.TaskInputModel = task_input.InitialModel()
-				m.ShowTextInput = true
+			if !m.showTextInput {
+				m.taskInputModel = task_input.InitialModel()
+				m.showTextInput = true
 				return m, nil
 			}
 		case "x":
-			if !m.ShowTextInput {
+			if !m.showTextInput {
 				selectedItem := m.list.Items()[m.list.Index()]
 				selectedTask := selectedItem.(task.Task)
 				m.taskStore.Delete(selectedTask.ID())
@@ -61,15 +62,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetSize(msg.Width-h, msg.Height-v)
 	}
 
-	if m.ShowTextInput {
-		taskInputModel, cmd := m.TaskInputModel.Update(msg)
-		m.TaskInputModel = taskInputModel.(task_input.TaskInput)
-		if m.TaskInputModel.Submitted {
-			title, description := m.TaskInputModel.GetNewTask()
+	if m.showTextInput {
+		taskInputModel, cmd := m.taskInputModel.Update(msg)
+		m.taskInputModel = taskInputModel.(task_input.TaskInput)
+		if m.taskInputModel.Submitted {
+			title, description := m.taskInputModel.GetNewTask()
 			newTask, _ := m.taskStore.Create(title, description)
 			m.list.InsertItem(len(m.list.Items()), *newTask)
-			m.TaskInputModel.Submitted = false
-			m.ShowTextInput = false
+			m.taskInputModel.Submitted = false
+			m.showTextInput = false
 		}
 		return m, cmd
 	}
@@ -80,55 +81,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	if m.ShowTextInput {
-		return m.TaskInputModel.View()
+	if m.showTextInput {
+		return m.taskInputModel.View()
 	}
 	return docStyle.Render(m.list.View())
 }
 
 func main() {
-	// Open a database file, creating it if it doesn't exist
-	db, err := sql.Open("sqlite3", "database.db")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	// Check if the connection to the database is successful
-	err = db.Ping()
+	// Connect to store
+	taskStore, err := task.ConnectStore()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Connected to SQLite database")
-
-	// Create tasks table
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS tasks (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			title TEXT,
-			description TEXT
-		)
-	`)
+	// Initialise store structure
+	err = taskStore.Init()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer taskStore.Close()
 
-	fmt.Println("Created tasks table")
-
-	taskStore := task.NewStore(db)
-
+	// Request initial task list
 	tasks, err := taskStore.List()
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Transform tasks slice to list.Item interface slice
 	items := make([]list.Item, len(tasks))
 	for i, task := range tasks {
 		items[i] = task
 	}
 
+	// Construct tasks list with custom key bindings
 	tasksList := list.New(items, list.NewDefaultDelegate(), 0, 0)
 	tasksList.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
@@ -145,8 +130,10 @@ func main() {
 	m := model{list: tasksList, taskStore: taskStore}
 	m.list.Title = "Todoaroo list"
 
+	// Initialise Bubbletea program
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
+	// Run application
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
