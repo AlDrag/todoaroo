@@ -19,14 +19,14 @@ import (
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type taskStore interface {
-	Create(title string, description string) (task.Task, error)
+	Create(title string, description string) (*task.Task, error)
 	List() ([]task.Task, error)
 	Delete(id int) error
 }
 
 type model struct {
 	list      list.Model
-	taskStore *task.TaskSqlStore
+	taskStore taskStore
 
 	TaskInputModel task_input.TaskInput
 	ShowTextInput  bool
@@ -118,7 +118,11 @@ func main() {
 
 	taskStore := task.NewStore(db)
 
-	tasks := taskStore.List()
+	tasks, err := taskStore.List()
+
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	items := make([]list.Item, len(tasks))
 	for i, task := range tasks {

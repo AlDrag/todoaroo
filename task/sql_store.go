@@ -37,7 +37,7 @@ func (db *TaskSqlStore) Create(title string, description string) (*Task, error) 
 	}, nil
 }
 
-func (db *TaskSqlStore) List() (list []Task) {
+func (db *TaskSqlStore) List() (list []Task, err error) {
 	rows, err := db.Query("SELECT id, title, description FROM tasks")
 	if err != nil {
 		log.Fatal(err)
@@ -65,7 +65,7 @@ func (db *TaskSqlStore) List() (list []Task) {
 		log.Fatal(err)
 	}
 
-	return tasks
+	return tasks, nil
 }
 
 func (db *TaskSqlStore) Delete(id int) error {
