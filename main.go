@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"todoaroo/store"
 	"todoaroo/task"
 	"todoaroo/task_input"
 
@@ -21,17 +22,9 @@ const (
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
-type taskStore interface {
-	Init() error
-	Close() error
-	Create(title string, description string) (*task.Task, error)
-	List() ([]task.Task, error)
-	Delete(id int) error
-}
-
 type model struct {
 	mode      int
-	taskStore taskStore
+	taskStore store.TaskStore
 
 	list           list.Model
 	taskInputModel task_input.TaskInput
