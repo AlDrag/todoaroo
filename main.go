@@ -65,10 +65,12 @@ func (m model) taskListUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = createMode
 			return m, nil
 		case "x":
-			selectedItem := m.list.Items()[m.list.Index()]
-			selectedTask := selectedItem.(task.Task)
-			m.taskStore.Delete(selectedTask.ID())
-			m.list.RemoveItem(m.list.Index())
+			if len(m.list.Items()) > 0 {
+				selectedItem := m.list.Items()[m.list.Index()]
+				selectedTask := selectedItem.(task.Task)
+				m.taskStore.Delete(selectedTask.ID())
+				m.list.RemoveItem(m.list.Index())
+			}
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
@@ -129,7 +131,7 @@ func main() {
 			),
 			key.NewBinding(
 				key.WithKeys("x"),
-				key.WithHelp("a", "delete item"),
+				key.WithHelp("x", "delete item"),
 			),
 		}
 	}
