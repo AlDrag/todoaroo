@@ -15,15 +15,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type mode string
+
 const (
-	tasksListMode int = iota
-	createMode
+	tasksListMode mode = "TasksList"
+	createMode    mode = "Create"
 )
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type model struct {
-	mode      int
+	mode      mode
 	taskStore store.TaskStore
 
 	list           list.Model
